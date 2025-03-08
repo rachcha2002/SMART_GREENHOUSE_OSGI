@@ -10,7 +10,7 @@ public class Activator implements BundleActivator {
 
     @Override
     public void start(BundleContext context) throws Exception {
-        System.out.println("[ClimatePublisher(Producer)] Starting service...");
+        System.out.println("[ClimatePublisher] Starting service...");
         
         // Create the producer
         producer = new TemperatureHumidityProducer();
@@ -24,12 +24,12 @@ public class Activator implements BundleActivator {
         // Start generating climate data
         producer.start();
         
-        System.out.println("[ClimatePublisher(Producer)] Service registered successfully");
+        System.out.println("[ClimatePublisher] Service registered successfully");
     }
 
     @Override
     public void stop(BundleContext context) throws Exception {
-        System.out.println("[ClimatePublisher(Producer)] Stopping service...");
+        System.out.println("[ClimatePublisher] Stopping service...");
         
         // Stop the producer
         if (producer != null) {
@@ -41,6 +41,6 @@ public class Activator implements BundleActivator {
             serviceRegistration.unregister();
         }
         
-        System.out.println("[ClimatePublisher(Producer)] Service stopped");
+        System.out.println("[ClimatePublisher] Service stopped");
     }
 }
