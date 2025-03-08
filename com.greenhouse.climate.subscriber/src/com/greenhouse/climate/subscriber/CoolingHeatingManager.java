@@ -6,12 +6,15 @@ import java.util.Date;
 import java.util.Map;
 
 import com.greenhouse.climate.publisher.TemperatureHumidityService;
+import com.greenhouse.report.IGreenhouseReporter;
 import com.greenhouse.climate.publisher.ClimateData;
 
 public class CoolingHeatingManager {
     private TemperatureHumidityService climateService;
     private Thread monitoringThread;
     private volatile boolean running = true;
+    private IGreenhouseReporter reporter;
+
     
     // Store HVAC state for each zone
     private Map<String, ZoneHVACState> zoneHVACStates = new HashMap<>();
@@ -50,8 +53,9 @@ public class CoolingHeatingManager {
         CROP_OPTIMAL_HUMIDITY.put("Herbs", new double[]{55.0, 70.0});
     }
     
-    public CoolingHeatingManager(TemperatureHumidityService climateService) {
+    public CoolingHeatingManager(TemperatureHumidityService climateService, IGreenhouseReporter reporter) {
         this.climateService = climateService;
+        this.reporter = reporter;
         
         // Initialize HVAC state for each zone
         String[] zones = climateService.getAvailableZones();
@@ -559,32 +563,56 @@ public class CoolingHeatingManager {
     private void activateCooling(String zoneId, String zoneDisplay, boolean activate) {
         if (activate) {
             System.out.println("[HVAC-" + zoneDisplay + "] 🧊 Activating cooling system");
+            if (reporter != null) {
+                reporter.recordAction("Climate Control", "Activated cooling system in " + zoneDisplay);
+            }
         } else {
             System.out.println("[HVAC-" + zoneDisplay + "] ⏸️ Deactivating cooling system");
+            if (reporter != null) {
+                reporter.recordAction("Climate Control", "Deactivated cooling system in " + zoneDisplay);
+            }
         }
     }
-    
+
     private void activateHeating(String zoneId, String zoneDisplay, boolean activate) {
         if (activate) {
             System.out.println("[HVAC-" + zoneDisplay + "] 🔥 Activating heating system");
+            if (reporter != null) {
+                reporter.recordAction("Climate Control", "Activated heating system in " + zoneDisplay);
+            }
         } else {
             System.out.println("[HVAC-" + zoneDisplay + "] ⏸️ Deactivating heating system");
+            if (reporter != null) {
+                reporter.recordAction("Climate Control", "Deactivated heating system in " + zoneDisplay);
+            }
         }
     }
-    
+
     private void activateHumidifier(String zoneId, String zoneDisplay, boolean activate) {
         if (activate) {
             System.out.println("[HVAC-" + zoneDisplay + "] 💦 Activating humidifier");
+            if (reporter != null) {
+                reporter.recordAction("Climate Control", "Activated humidifier in " + zoneDisplay);
+            }
         } else {
             System.out.println("[HVAC-" + zoneDisplay + "] ⏸️ Deactivating humidifier");
+            if (reporter != null) {
+                reporter.recordAction("Climate Control", "Deactivated humidifier in " + zoneDisplay);
+            }
         }
     }
-    
+
     private void activateDehumidifier(String zoneId, String zoneDisplay, boolean activate) {
         if (activate) {
             System.out.println("[HVAC-" + zoneDisplay + "] 🌵 Activating dehumidifier");
+            if (reporter != null) {
+                reporter.recordAction("Climate Control", "Activated dehumidifier in " + zoneDisplay);
+            }
         } else {
             System.out.println("[HVAC-" + zoneDisplay + "] ⏸️ Deactivating dehumidifier");
+            if (reporter != null) {
+                reporter.recordAction("Climate Control", "Deactivated dehumidifier in " + zoneDisplay);
+            }
         }
     }
     
