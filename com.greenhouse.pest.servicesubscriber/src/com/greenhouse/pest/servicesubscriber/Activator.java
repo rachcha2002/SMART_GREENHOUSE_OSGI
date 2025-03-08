@@ -43,7 +43,7 @@ public class Activator implements BundleActivator {
 
                 // Fetch the latest pest detection result from the producer
                 String pestStatus = pestService.detectPests();
-                System.out.println("[PestControlSystem] Detected: " + pestStatus);
+                System.out.println(pestStatus);
                 activateControl(pestStatus);
 
                 // Wait for 30 seconds before fetching the next update
