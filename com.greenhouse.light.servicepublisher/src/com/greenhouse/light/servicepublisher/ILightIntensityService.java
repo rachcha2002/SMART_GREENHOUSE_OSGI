@@ -1,7 +1,9 @@
 package com.greenhouse.light.servicepublisher;
 
+import java.util.Map;
+
 public interface ILightIntensityService {
 	
-	 double getLightIntensity();
+	Map<String, Integer> getLightIntensity();
 
 }
