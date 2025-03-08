@@ -1,5 +1,8 @@
 package com.greenhouse.climate.subscriber;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import com.greenhouse.climate.publisher.TemperatureHumidityService;
 import com.greenhouse.climate.publisher.ClimateData;
 
@@ -8,47 +11,74 @@ public class CoolingHeatingManager {
     private Thread monitoringThread;
     private volatile boolean running = true;
     
-    // Define climate control thresholds
-    private static final double TEMP_TOO_HIGH = 27.0; // °C
-    private static final double TEMP_HIGH = 25.0; // °C
-    private static final double TEMP_LOW = 22.0; // °C
-    private static final double TEMP_TOO_LOW = 20.0; // °C
+    // Store HVAC state for each zone
+    private Map<String, ZoneHVACState> zoneHVACStates = new HashMap<>();
     
-    private static final double HUMIDITY_TOO_HIGH = 85.0; // %
-    private static final double HUMIDITY_HIGH = 80.0; // %
-    private static final double HUMIDITY_LOW = 60.0; // %
-    private static final double HUMIDITY_TOO_LOW = 55.0; // %
+    // Define default climate control thresholds
+    // Each zone will adjust these based on crop needs
+    private static final double TEMP_BUFFER = 2.0; // Buffer beyond optimal range before HVAC activates
+    private static final double HUMIDITY_BUFFER = 5.0; // Buffer beyond optimal range before HVAC activates
     
-    // Track current HVAC state
-    private boolean coolingActive = false;
-    private boolean heatingActive = false;
-    private boolean humidifierActive = false;
-    private boolean dehumidifierActive = false;
+    private static final Map<String, double[]> CROP_OPTIMAL_TEMPS = new HashMap<>();
+    private static final Map<String, double[]> CROP_OPTIMAL_HUMIDITY = new HashMap<>();
+    private static final Map<String, String> GREENHOUSE_ZONES = new HashMap<>();
+    
+    // Initialize zone and crop data - must match producer data
+    static {
+        // Define zones and crops
+        GREENHOUSE_ZONES.put("Zone-A", "Tomatoes");
+        GREENHOUSE_ZONES.put("Zone-B", "Cucumbers");
+        GREENHOUSE_ZONES.put("Zone-C", "Peppers");
+        GREENHOUSE_ZONES.put("Zone-D", "Lettuce");
+        GREENHOUSE_ZONES.put("Zone-E", "Herbs");
+        
+        // Define optimal temperature ranges for each crop [min, max]
+        CROP_OPTIMAL_TEMPS.put("Tomatoes", new double[]{21.0, 27.0});
+        CROP_OPTIMAL_TEMPS.put("Cucumbers", new double[]{23.0, 28.0});
+        CROP_OPTIMAL_TEMPS.put("Peppers", new double[]{22.0, 26.0});
+        CROP_OPTIMAL_TEMPS.put("Lettuce", new double[]{15.0, 22.0});
+        CROP_OPTIMAL_TEMPS.put("Herbs", new double[]{18.0, 24.0});
+        
+        // Define optimal humidity ranges for each crop [min, max]
+        CROP_OPTIMAL_HUMIDITY.put("Tomatoes", new double[]{65.0, 80.0});
+        CROP_OPTIMAL_HUMIDITY.put("Cucumbers", new double[]{70.0, 85.0});
+        CROP_OPTIMAL_HUMIDITY.put("Peppers", new double[]{65.0, 75.0});
+        CROP_OPTIMAL_HUMIDITY.put("Lettuce", new double[]{60.0, 70.0});
+        CROP_OPTIMAL_HUMIDITY.put("Herbs", new double[]{55.0, 70.0});
+    }
     
     public CoolingHeatingManager(TemperatureHumidityService climateService) {
         this.climateService = climateService;
+        
+        // Initialize HVAC state for each zone
+        for (String zoneId : GREENHOUSE_ZONES.keySet()) {
+            zoneHVACStates.put(zoneId, new ZoneHVACState());
+        }
     }
     
     public void start() {
-        System.out.println("[CoolingHeatingManager(Consumer)] Starting climate control system");
+        System.out.println("[CoolingHeatingManager] Starting climate control system for all zones");
         
         monitoringThread = new Thread(() -> {
             while (running) {
                 try {
-                    // Get the latest climate data
-                    ClimateData data = climateService.getClimateData();
-                    if (data != null) {
-                        // Process the climate data and adjust HVAC systems
-                        controlTemperature(data.getTemperature());
-                        controlHumidity(data.getHumidity());
+                    // Get climate data for all zones
+                    Map<String, ClimateData> allZonesData = climateService.getAllZonesClimateData();
+                    
+                    if (allZonesData != null && !allZonesData.isEmpty()) {
+                        // Process climate data for each zone
+                        for (String zoneId : allZonesData.keySet()) {
+                            ClimateData zoneData = allZonesData.get(zoneId);
+                            processZoneClimate(zoneId, zoneData);
+                        }
                     } else {
-                        System.out.println("[CoolingHeatingManager(Consumer)] ⚠️ Warning: No climate data available");
+                        System.out.println("[CoolingHeatingManager] ⚠️ Warning: No climate data available");
                     }
                     
                     // Wait before checking again
                     Thread.sleep(5000); // Check every 5 seconds
                 } catch (Exception e) {
-                    System.err.println("[CoolingHeatingManager(Consumer)] Error processing climate data: " + e.getMessage());
+                    System.err.println("[CoolingHeatingManager] Error processing climate data: " + e.getMessage());
                     try {
                         Thread.sleep(5000); // Wait before retrying
                     } catch (InterruptedException ie) {
@@ -62,111 +92,167 @@ public class CoolingHeatingManager {
         monitoringThread.start();
     }
     
-    private void controlTemperature(double temperature) {
+    private void processZoneClimate(String zoneId, ClimateData data) {
+        if (data == null) return;
+        
+        String cropType = GREENHOUSE_ZONES.get(zoneId);
+        if (cropType == null) {
+            System.err.println("[CoolingHeatingManager] Unknown zone: " + zoneId);
+            return;
+        }
+        
+        // Get optimal ranges for this crop
+        double[] tempRange = CROP_OPTIMAL_TEMPS.get(cropType);
+        double[] humidityRange = CROP_OPTIMAL_HUMIDITY.get(cropType);
+        
+        // Set control thresholds with buffer
+        double tempMin = tempRange[0];
+        double tempMax = tempRange[1];
+        double tempLow = tempMin - TEMP_BUFFER; // Activate heating below this
+        double tempHigh = tempMax + TEMP_BUFFER; // Activate cooling above this
+        
+        double humidityMin = humidityRange[0];
+        double humidityMax = humidityRange[1];
+        double humidityLow = humidityMin - HUMIDITY_BUFFER; // Activate humidifier below this
+        double humidityHigh = humidityMax + HUMIDITY_BUFFER; // Activate dehumidifier above this
+        
+        // Get current temperature and humidity
+        double temperature = data.getTemperature();
+        double humidity = data.getHumidity();
+        
+        // Get the HVAC state for this zone
+        ZoneHVACState hvacState = zoneHVACStates.get(zoneId);
+        
+        // Control temperature for this zone
+        controlZoneTemperature(zoneId, temperature, tempLow, tempMin, tempMax, tempHigh, hvacState);
+        
+        // Control humidity for this zone
+        controlZoneHumidity(zoneId, humidity, humidityLow, humidityMin, humidityMax, humidityHigh, hvacState);
+    }
+    
+    private void controlZoneTemperature(String zoneId, double temperature, 
+                                      double tempLow, double tempMin, 
+                                      double tempMax, double tempHigh,
+                                      ZoneHVACState hvacState) {
         // Handle extreme temperatures first
-        if (temperature > TEMP_TOO_HIGH) {
-            if (!coolingActive) {
-                activateCooling(true);
+        if (temperature < tempLow) {
+            if (!hvacState.heatingActive) {
+                activateHeating(zoneId, true);
+                hvacState.heatingActive = true;
             }
-            if (heatingActive) {
-                activateHeating(false);
-            }
-        }
-        else if (temperature < TEMP_TOO_LOW) {
-            if (!heatingActive) {
-                activateHeating(true);
-            }
-            if (coolingActive) {
-                activateCooling(false);
+            if (hvacState.coolingActive) {
+                activateCooling(zoneId, false);
+                hvacState.coolingActive = false;
             }
         }
-        // Handle more moderate temperature imbalances
-        else if (temperature > TEMP_HIGH && !coolingActive) {
-            activateCooling(true);
-        }
-        else if (temperature < TEMP_LOW && !heatingActive) {
-            activateHeating(true);
-        }
-        // Turn off systems when temperature is back to normal range
-        else if (temperature <= TEMP_HIGH && temperature >= TEMP_LOW) {
-            if (coolingActive) {
-                activateCooling(false);
+        else if (temperature > tempHigh) {
+            if (!hvacState.coolingActive) {
+                activateCooling(zoneId, true);
+                hvacState.coolingActive = true;
             }
-            if (heatingActive) {
-                activateHeating(false);
+            if (hvacState.heatingActive) {
+                activateHeating(zoneId, false);
+                hvacState.heatingActive = false;
+            }
+        }
+        // Handle temperatures outside optimal range
+        else if (temperature < tempMin && !hvacState.heatingActive) {
+            activateHeating(zoneId, true);
+            hvacState.heatingActive = true;
+        }
+        else if (temperature > tempMax && !hvacState.coolingActive) {
+            activateCooling(zoneId, true);
+            hvacState.coolingActive = true;
+        }
+        // Turn off systems when temperature is within optimal range
+        else if (temperature >= tempMin && temperature <= tempMax) {
+            if (hvacState.heatingActive) {
+                activateHeating(zoneId, false);
+                hvacState.heatingActive = false;
+            }
+            if (hvacState.coolingActive) {
+                activateCooling(zoneId, false);
+                hvacState.coolingActive = false;
             }
         }
     }
     
-    private void controlHumidity(double humidity) {
+    private void controlZoneHumidity(String zoneId, double humidity,
+                                   double humidityLow, double humidityMin,
+                                   double humidityMax, double humidityHigh,
+                                   ZoneHVACState hvacState) {
         // Handle extreme humidity levels first
-        if (humidity > HUMIDITY_TOO_HIGH) {
-            if (!dehumidifierActive) {
-                activateDehumidifier(true);
+        if (humidity < humidityLow) {
+            if (!hvacState.humidifierActive) {
+                activateHumidifier(zoneId, true);
+                hvacState.humidifierActive = true;
             }
-            if (humidifierActive) {
-                activateHumidifier(false);
-            }
-        }
-        else if (humidity < HUMIDITY_TOO_LOW) {
-            if (!humidifierActive) {
-                activateHumidifier(true);
-            }
-            if (dehumidifierActive) {
-                activateDehumidifier(false);
+            if (hvacState.dehumidifierActive) {
+                activateDehumidifier(zoneId, false);
+                hvacState.dehumidifierActive = false;
             }
         }
-        // Handle more moderate humidity imbalances
-        else if (humidity > HUMIDITY_HIGH && !dehumidifierActive) {
-            activateDehumidifier(true);
-        }
-        else if (humidity < HUMIDITY_LOW && !humidifierActive) {
-            activateHumidifier(true);
-        }
-        // Turn off systems when humidity is back to normal range
-        else if (humidity <= HUMIDITY_HIGH && humidity >= HUMIDITY_LOW) {
-            if (dehumidifierActive) {
-                activateDehumidifier(false);
+        else if (humidity > humidityHigh) {
+            if (!hvacState.dehumidifierActive) {
+                activateDehumidifier(zoneId, true);
+                hvacState.dehumidifierActive = true;
             }
-            if (humidifierActive) {
-                activateHumidifier(false);
+            if (hvacState.humidifierActive) {
+                activateHumidifier(zoneId, false);
+                hvacState.humidifierActive = false;
+            }
+        }
+        // Handle humidity outside optimal range
+        else if (humidity < humidityMin && !hvacState.humidifierActive) {
+            activateHumidifier(zoneId, true);
+            hvacState.humidifierActive = true;
+        }
+        else if (humidity > humidityMax && !hvacState.dehumidifierActive) {
+            activateDehumidifier(zoneId, true);
+            hvacState.dehumidifierActive = true;
+        }
+        // Turn off systems when humidity is within optimal range
+        else if (humidity >= humidityMin && humidity <= humidityMax) {
+            if (hvacState.humidifierActive) {
+                activateHumidifier(zoneId, false);
+                hvacState.humidifierActive = false;
+            }
+            if (hvacState.dehumidifierActive) {
+                activateDehumidifier(zoneId, false);
+                hvacState.dehumidifierActive = false;
             }
         }
     }
     
-    private void activateCooling(boolean activate) {
-        coolingActive = activate;
+    private void activateCooling(String zoneId, boolean activate) {
         if (activate) {
-            System.out.println("[CoolingHeatingManager(Consumer)] 🧊 Activating cooling system");
+            System.out.println("[HVAC-" + zoneId + "] 🧊 Activating cooling system");
         } else {
-            System.out.println("[CoolingHeatingManager(Consumer)] ⏸️ Deactivating cooling system");
+            System.out.println("[HVAC-" + zoneId + "] ⏸️ Deactivating cooling system");
         }
     }
     
-    private void activateHeating(boolean activate) {
-        heatingActive = activate;
+    private void activateHeating(String zoneId, boolean activate) {
         if (activate) {
-            System.out.println("[CoolingHeatingManager(Consumer)] 🔥 Activating heating system");
+            System.out.println("[HVAC-" + zoneId + "] 🔥 Activating heating system");
         } else {
-            System.out.println("[CoolingHeatingManager(Consumer)] ⏸️ Deactivating heating system");
+            System.out.println("[HVAC-" + zoneId + "] ⏸️ Deactivating heating system");
         }
     }
     
-    private void activateHumidifier(boolean activate) {
-        humidifierActive = activate;
+    private void activateHumidifier(String zoneId, boolean activate) {
         if (activate) {
-            System.out.println("[CoolingHeatingManager(Consumer)] 💦 Activating humidifier");
+            System.out.println("[HVAC-" + zoneId + "] 💦 Activating humidifier");
         } else {
-            System.out.println("[CoolingHeatingManager(Consumer)] ⏸️ Deactivating humidifier");
+            System.out.println("[HVAC-" + zoneId + "] ⏸️ Deactivating humidifier");
         }
     }
     
-    private void activateDehumidifier(boolean activate) {
-        dehumidifierActive = activate;
+    private void activateDehumidifier(String zoneId, boolean activate) {
         if (activate) {
-            System.out.println("[CoolingHeatingManager(Consumer)] 🌵 Activating dehumidifier");
+            System.out.println("[HVAC-" + zoneId + "] 🌵 Activating dehumidifier");
         } else {
-            System.out.println("[CoolingHeatingManager(Consumer)] ⏸️ Deactivating dehumidifier");
+            System.out.println("[HVAC-" + zoneId + "] ⏸️ Deactivating dehumidifier");
         }
     }
     
@@ -175,6 +261,14 @@ public class CoolingHeatingManager {
         if (monitoringThread != null) {
             monitoringThread.interrupt();
         }
-        System.out.println("[CoolingHeatingManager(Consumer)] Climate control system stopped");
+        System.out.println("[CoolingHeatingManager] Climate control system stopped for all zones");
+    }
+    
+    // Inner class to track HVAC state for each zone
+    private static class ZoneHVACState {
+        boolean coolingActive = false;
+        boolean heatingActive = false;
+        boolean humidifierActive = false;
+        boolean dehumidifierActive = false;
     }
 }
