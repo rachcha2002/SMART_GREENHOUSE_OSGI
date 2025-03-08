@@ -33,6 +33,8 @@ public class IrrigationController {
         Map<String, Double> moistureData = soilMoistureService.getSoilMoistureLevels();
         System.out.println("\n--- Irrigation Report ---");
         
+        System.out.println("============================================================");
+        
         for (Map.Entry<String, Double> entry : moistureData.entrySet()) {
             String zone = entry.getKey();
             double moistureLevel = entry.getValue();
@@ -42,6 +44,7 @@ public class IrrigationController {
 
             String formattedMoisture = String.format("%.2f", moistureLevel);
             String formattedThreshold = String.format("%.2f", requiredMoisture);
+            
 
             if (moistureLevel < requiredMoisture) {
                 System.out.println(zone + 
@@ -51,6 +54,7 @@ public class IrrigationController {
                     " (" + plantType + ", Moisture: " + formattedMoisture + "%) -> No irrigation needed.");
             }
         }
+        System.out.println("============================================================");
     }
 
     // Run checkAndIrrigate() every 20 seconds continuously
