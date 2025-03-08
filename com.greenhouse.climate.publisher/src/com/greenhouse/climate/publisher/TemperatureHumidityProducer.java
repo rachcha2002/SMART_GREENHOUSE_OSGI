@@ -36,7 +36,7 @@ public class TemperatureHumidityProducer implements TemperatureHumidityService {
         // Start a thread to periodically update climate data
         executorService = Executors.newSingleThreadExecutor();
         executorService.execute(this::updateClimateData);
-        System.out.println("[TemperatureHumidityProducer] Service started. Monitoring greenhouse climate.");
+        System.out.println("[TemperatureHumidityProducer(Producer)] Service started. Monitoring greenhouse climate.");
     }
     
     private void updateClimateData() {
@@ -58,11 +58,11 @@ public class TemperatureHumidityProducer implements TemperatureHumidityService {
                 // Periodically simulate more significant changes (weather events)
                 if (random.nextInt(20) == 0) { // 5% chance of weather event
                     if (random.nextBoolean()) {
-                        System.out.println("[TemperatureHumidityProducer] Simulating sunny day temperature spike");
+                        System.out.println("[TemperatureHumidityProducer(Producer)] Simulating sunny day temperature spike");
                         tempDelta += 3.0; // Temperature spike
                         humidityDelta -= 5.0; // Humidity drop
                     } else {
-                        System.out.println("[TemperatureHumidityProducer] Simulating rainy day humidity spike");
+                        System.out.println("[TemperatureHumidityProducer(Producer)] Simulating rainy day humidity spike");
                         tempDelta -= 2.0; // Temperature drop
                         humidityDelta += 8.0; // Humidity spike
                     }
@@ -79,18 +79,18 @@ public class TemperatureHumidityProducer implements TemperatureHumidityService {
                 currentClimateData = new ClimateData(newTemp, newHumidity);
                 
                 // Log the new climate data with the zone
-                System.out.println("[TemperatureHumidityProducer] " + currentZone + " - " + currentClimateData);
+                System.out.println("[TemperatureHumidityProducer(Producer)] " + currentZone + " - " + currentClimateData);
                 
                 // Analyze if conditions are optimal
                 if (newTemp < MIN_OPTIMAL_TEMP || newTemp > MAX_OPTIMAL_TEMP ||
                     newHumidity < MIN_OPTIMAL_HUMIDITY || newHumidity > MAX_OPTIMAL_HUMIDITY) {
-                    System.out.println("[TemperatureHumidityProducer] ⚠️ Warning: Climate conditions outside optimal range");
+                    System.out.println("[TemperatureHumidityProducer(Producer)] ⚠️ Warning: Climate conditions outside optimal range");
                 }
                 
                 // Wait before the next update
                 Thread.sleep(10000); // Update every 10 seconds
             } catch (InterruptedException e) {
-                System.out.println("[TemperatureHumidityProducer] Climate monitoring interrupted");
+                System.out.println("[TemperatureHumidityProducer(Producer)] Climate monitoring interrupted");
                 running = false;
                 break;
             }
@@ -102,7 +102,7 @@ public class TemperatureHumidityProducer implements TemperatureHumidityService {
         if (executorService != null) {
             executorService.shutdown();
         }
-        System.out.println("[TemperatureHumidityProducer] Service stopped");
+        System.out.println("[TemperatureHumidityProducer(Producer)] Service stopped");
     }
     
     @Override

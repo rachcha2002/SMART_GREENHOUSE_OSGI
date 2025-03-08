@@ -30,7 +30,7 @@ public class CoolingHeatingManager {
     }
     
     public void start() {
-        System.out.println("[CoolingHeatingManager] Starting climate control system");
+        System.out.println("[CoolingHeatingManager(Consumer)] Starting climate control system");
         
         monitoringThread = new Thread(() -> {
             while (running) {
@@ -42,13 +42,13 @@ public class CoolingHeatingManager {
                         controlTemperature(data.getTemperature());
                         controlHumidity(data.getHumidity());
                     } else {
-                        System.out.println("[CoolingHeatingManager] ⚠️ Warning: No climate data available");
+                        System.out.println("[CoolingHeatingManager(Consumer)] ⚠️ Warning: No climate data available");
                     }
                     
                     // Wait before checking again
                     Thread.sleep(5000); // Check every 5 seconds
                 } catch (Exception e) {
-                    System.err.println("[CoolingHeatingManager] Error processing climate data: " + e.getMessage());
+                    System.err.println("[CoolingHeatingManager(Consumer)] Error processing climate data: " + e.getMessage());
                     try {
                         Thread.sleep(5000); // Wait before retrying
                     } catch (InterruptedException ie) {
@@ -137,36 +137,36 @@ public class CoolingHeatingManager {
     private void activateCooling(boolean activate) {
         coolingActive = activate;
         if (activate) {
-            System.out.println("[CoolingHeatingManager] 🧊 Activating cooling system");
+            System.out.println("[CoolingHeatingManager(Consumer)] 🧊 Activating cooling system");
         } else {
-            System.out.println("[CoolingHeatingManager] ⏸️ Deactivating cooling system");
+            System.out.println("[CoolingHeatingManager(Consumer)] ⏸️ Deactivating cooling system");
         }
     }
     
     private void activateHeating(boolean activate) {
         heatingActive = activate;
         if (activate) {
-            System.out.println("[CoolingHeatingManager] 🔥 Activating heating system");
+            System.out.println("[CoolingHeatingManager(Consumer)] 🔥 Activating heating system");
         } else {
-            System.out.println("[CoolingHeatingManager] ⏸️ Deactivating heating system");
+            System.out.println("[CoolingHeatingManager(Consumer)] ⏸️ Deactivating heating system");
         }
     }
     
     private void activateHumidifier(boolean activate) {
         humidifierActive = activate;
         if (activate) {
-            System.out.println("[CoolingHeatingManager] 💦 Activating humidifier");
+            System.out.println("[CoolingHeatingManager(Consumer)] 💦 Activating humidifier");
         } else {
-            System.out.println("[CoolingHeatingManager] ⏸️ Deactivating humidifier");
+            System.out.println("[CoolingHeatingManager(Consumer)] ⏸️ Deactivating humidifier");
         }
     }
     
     private void activateDehumidifier(boolean activate) {
         dehumidifierActive = activate;
         if (activate) {
-            System.out.println("[CoolingHeatingManager] 🌵 Activating dehumidifier");
+            System.out.println("[CoolingHeatingManager(Consumer)] 🌵 Activating dehumidifier");
         } else {
-            System.out.println("[CoolingHeatingManager] ⏸️ Deactivating dehumidifier");
+            System.out.println("[CoolingHeatingManager(Consumer)] ⏸️ Deactivating dehumidifier");
         }
     }
     
@@ -175,6 +175,6 @@ public class CoolingHeatingManager {
         if (monitoringThread != null) {
             monitoringThread.interrupt();
         }
-        System.out.println("[CoolingHeatingManager] Climate control system stopped");
+        System.out.println("[CoolingHeatingManager(Consumer)] Climate control system stopped");
     }
 }
