@@ -1,67 +1,36 @@
 package com.greenhouse.irrigationcontrol;
 
-import com.soilmoisture.api.IIrrigationControlService;
-import com.soilmoisture.api.ISoilMoistureService;
-
 import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceReference;
-import org.osgi.framework.ServiceRegistration;
 
-public class Activator implements BundleActivator, IIrrigationControlService {
+import com.soilmoisture.api.ISoilMoistureService;
 
-    private ServiceReference<ISoilMoistureService> moistureRef;
-    private ISoilMoistureService moistureService;
-
-    private ServiceRegistration<IIrrigationControlService> irrigationRegistration;
+public class Activator implements BundleActivator {
+    private IrrigationController irrigationController;
 
     @Override
     public void start(BundleContext context) throws Exception {
-        System.out.println("[IrrigationController] Bundle Starting...");
+        System.out.println("[Activator] Starting IrrigationControl bundle...");
 
-        // 1. Look up the SoilMoisture service
-        moistureRef = context.getServiceReference(ISoilMoistureService.class);
-        if (moistureRef != null) {
-            moistureService = context.getService(moistureRef);
-            System.out.println("[IrrigationController] SoilMoistureService found!");
-
-            // 2. Use the service right away (dummy example)
-            double moistureValue = moistureService.getSoilMoisture();
-            controlIrrigation(moistureValue);
+        // Get the soil moisture service
+        ServiceReference<ISoilMoistureService> serviceRef = context.getServiceReference(ISoilMoistureService.class);
+        if (serviceRef != null) {
+            ISoilMoistureService soilMoistureService = context.getService(serviceRef);
+            irrigationController = new IrrigationController(soilMoistureService);
+            irrigationController.startIrrigationCheck(); // Start monitoring
         } else {
-            System.out.println("[IrrigationController] SoilMoistureService NOT found!");
+            System.err.println("[Activator] Failed to start: SoilMoistureService not available!");
         }
-
-        // 3. Register ourselves as IIrrigationControlService if needed
-        irrigationRegistration = context.registerService(
-            IIrrigationControlService.class, this, null
-        );
-
-        System.out.println("[IrrigationController] Bundle Started");
     }
 
     @Override
     public void stop(BundleContext context) throws Exception {
-        // Unregister irrigation service
-        if (irrigationRegistration != null) {
-            irrigationRegistration.unregister();
-        }
+        System.out.println("[Activator] Stopping IrrigationControl bundle...");
 
-        // Release the SoilMoisture service
-        if (moistureRef != null) {
-            context.ungetService(moistureRef);
-        }
-
-        System.out.println("[IrrigationController] Bundle Stopped");
-    }
-
-    @Override
-    public void controlIrrigation(double moistureLevel) {
-        System.out.println("[IrrigationController] Checking moisture level: " + moistureLevel + "%");
-        if (moistureLevel < 30.0) {
-            System.out.println("[IrrigationController] Moisture too low. Activating irrigation!");
-        } else {
-            System.out.println("[IrrigationController] Moisture is sufficient. No irrigation needed.");
+        if (irrigationController != null) {
+            irrigationController.stopIrrigationCheck(); // Ensure it stops
+            irrigationController = null;
         }
     }
 }

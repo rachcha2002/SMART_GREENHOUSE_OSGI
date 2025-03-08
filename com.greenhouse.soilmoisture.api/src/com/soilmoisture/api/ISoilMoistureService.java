@@ -1,8 +1,7 @@
 package com.soilmoisture.api;
 
+import java.util.Map;
+
 public interface ISoilMoistureService {
-	 /**
-     * Returns a dummy soil moisture percentage [0-100].
-     */
-    double getSoilMoisture();
+    Map<String, Double> getSoilMoistureLevels();  // Returns moisture levels for all zones
 }
