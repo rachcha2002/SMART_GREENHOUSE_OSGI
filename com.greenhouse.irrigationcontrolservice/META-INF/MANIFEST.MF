@@ -1,0 +1,12 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Irrigationcontrolservice
+Bundle-SymbolicName: com.greenhouse.irrigationcontrolservice
+Bundle-Version: 1.0.0.qualifier
+Bundle-Activator: com.greenhouse.irrigationcontrolservice.Activator
+Bundle-Vendor: GREENHOUSE
+Bundle-RequiredExecutionEnvironment: JavaSE-21
+Automatic-Module-Name: com.greenhouse.irrigationcontrolservice
+Import-Package: com.greenhouse.soilmoistureservice,
+ org.osgi.framework;version="1.3.0"
+Bundle-ActivationPolicy: lazy
