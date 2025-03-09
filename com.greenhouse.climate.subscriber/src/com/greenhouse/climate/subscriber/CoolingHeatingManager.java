@@ -6,12 +6,15 @@ import java.util.Date;
 import java.util.Map;
 
 import com.greenhouse.climate.publisher.TemperatureHumidityService;
+import com.greenhouse.report.IGreenhouseReporter;
 import com.greenhouse.climate.publisher.ClimateData;
 
 public class CoolingHeatingManager {
     private TemperatureHumidityService climateService;
     private Thread monitoringThread;
     private volatile boolean running = true;
+    private IGreenhouseReporter reporter;
+
     
     // Store HVAC state for each zone
     private Map<String, ZoneHVACState> zoneHVACStates = new HashMap<>();
@@ -50,8 +53,9 @@ public class CoolingHeatingManager {
         CROP_OPTIMAL_HUMIDITY.put("Herbs", new double[]{55.0, 70.0});
     }
     
-    public CoolingHeatingManager(TemperatureHumidityService climateService) {
+    public CoolingHeatingManager(TemperatureHumidityService climateService, IGreenhouseReporter reporter) {
         this.climateService = climateService;
+        this.reporter = reporter;
         
         // Initialize HVAC state for each zone
         String[] zones = climateService.getAvailableZones();
@@ -160,13 +164,13 @@ public class CoolingHeatingManager {
         // Set control thresholds with buffer
         double tempMin = tempRange[0];
         double tempMax = tempRange[1];
-        double tempLow = tempMin - TEMP_BUFFER; // Activate heating below this
-        double tempHigh = tempMax + TEMP_BUFFER; // Activate cooling above this
+        double tempLow = tempMin - TEMP_BUFFER; 
+        double tempHigh = tempMax + TEMP_BUFFER;
         
         double humidityMin = humidityRange[0];
         double humidityMax = humidityRange[1];
-        double humidityLow = humidityMin - HUMIDITY_BUFFER; // Activate humidifier below this
-        double humidityHigh = humidityMax + HUMIDITY_BUFFER; // Activate dehumidifier above this
+        double humidityLow = humidityMin - HUMIDITY_BUFFER;
+        double humidityHigh = humidityMax + HUMIDITY_BUFFER;
         
         // Get current temperature and humidity
         double temperature = data.getTemperature();
@@ -271,101 +275,180 @@ public class CoolingHeatingManager {
         
         // Print the consolidated report
         System.out.println(report.toString());
+        
+        // Send a consolidated report to the reporter
+        if (reporter != null) {
+            // Create a summary of all climate conditions
+            StringBuilder climateReport = new StringBuilder("Climate monitoring report: ");
+            climateReport.append(zoneData.size()).append(" zones monitored");
+            
+            // Add action summary if there are any
+            if (!requiredActions.isEmpty()) {
+                climateReport.append(", Actions taken: ");
+                int actionCount = 0;
+                
+                for (Map.Entry<String, String> entry : requiredActions.entrySet()) {
+                    String zoneId = entry.getKey();
+                    String action = entry.getValue();
+                    String cropType = ZONE_CROP_MAPPING.get(zoneId);
+                    
+                    if (actionCount > 0) {
+                        climateReport.append("; ");
+                    }
+                    climateReport.append(zoneId).append(" (").append(cropType).append("): ").append(action);
+                    actionCount++;
+                }
+            } else {
+                climateReport.append(" - All conditions within optimal ranges");
+            }
+            
+            // Record the consolidated report
+            reporter.recordAction("Climate Control", climateReport.toString());
+        }
     }
 
     private String determineRequiredActions(String zoneId, double temperature, double humidity,
-                                          double tempLow, double tempMin, double tempMax, double tempHigh,
-                                          double humidityLow, double humidityMin, double humidityMax, double humidityHigh,
-                                          ZoneHVACState hvacState) {
-        StringBuilder action = new StringBuilder();
-        boolean actionTaken = false;
-        
-        // Handle temperature issues
-        if (temperature < tempLow) {
-            if (!hvacState.heatingActive) {
-                action.append("Activating heating system");
-                hvacState.heatingActive = true;
-                actionTaken = true;
-            }
-            if (hvacState.coolingActive) {
-                if (actionTaken) action.append(", ");
-                action.append("Deactivating cooling system");
-                hvacState.coolingActive = false;
-                actionTaken = true;
-            }
-        }
-        else if (temperature > tempHigh) {
-            if (!hvacState.coolingActive) {
-                action.append("Activating cooling system");
-                hvacState.coolingActive = true;
-                actionTaken = true;
-            }
-            if (hvacState.heatingActive) {
-                if (actionTaken) action.append(", ");
-                action.append("Deactivating heating system");
-                hvacState.heatingActive = false;
-                actionTaken = true;
-            }
-        }
-        else if (temperature < tempMin && !hvacState.heatingActive) {
-            action.append("Activating heating system");
-            hvacState.heatingActive = true;
-            actionTaken = true;
-        }
-        else if (temperature > tempMax && !hvacState.coolingActive) {
-            action.append("Activating cooling system");
-            hvacState.coolingActive = true;
-            actionTaken = true;
-        }
-        
-        // Handle humidity issues
-        if (humidity < humidityLow) {
-            if (actionTaken) action.append(", ");
-            if (!hvacState.humidifierActive) {
-                action.append("Activating humidifier");
-                hvacState.humidifierActive = true;
-                actionTaken = true;
-            }
-            if (hvacState.dehumidifierActive) {
-                if (actionTaken) action.append(", ");
-                action.append("Deactivating dehumidifier");
-                hvacState.dehumidifierActive = false;
-                actionTaken = true;
-            }
-        }
-        else if (humidity > humidityHigh) {
-            if (actionTaken) action.append(", ");
-            if (!hvacState.dehumidifierActive) {
-                action.append("Activating dehumidifier");
-                hvacState.dehumidifierActive = true;
-                actionTaken = true;
-            }
-            if (hvacState.humidifierActive) {
-                if (actionTaken) action.append(", ");
-                action.append("Deactivating humidifier");
-                hvacState.humidifierActive = false;
-                actionTaken = true;
-            }
-        }
-        else if (humidity < humidityMin && !hvacState.humidifierActive) {
-            if (actionTaken) action.append(", ");
-            action.append("Activating humidifier");
-            hvacState.humidifierActive = true;
-            actionTaken = true;
-        }
-        else if (humidity > humidityMax && !hvacState.dehumidifierActive) {
-            if (actionTaken) action.append(", ");
-            action.append("Activating dehumidifier");
-            hvacState.dehumidifierActive = true;
-            actionTaken = true;
-        }
-        
-        if (!actionTaken) {
-            return null; // No action required
-        }
-        
-        return action.toString();
-    }
+            double tempLow, double tempMin, double tempMax, double tempHigh,
+            double humidityLow, double humidityMin, double humidityMax, double humidityHigh,
+            ZoneHVACState hvacState) {
+StringBuilder action = new StringBuilder();
+boolean actionTaken = false;
+String zoneDisplay = zoneId + " (" + ZONE_CROP_MAPPING.get(zoneId) + ")";
+
+// Handle temperature issues
+if (temperature < tempLow) {
+if (!hvacState.heatingActive) {
+// Call the activation method but don't let it report independently
+System.out.println("[HVAC-" + zoneDisplay + "] 🔥 Activating heating system");
+hvacState.heatingActive = true;
+
+// Update action string
+action.append("Activating heating system");
+actionTaken = true;
+}
+if (hvacState.coolingActive) {
+// Call the activation method but don't let it report independently
+System.out.println("[HVAC-" + zoneDisplay + "] ⏸️ Deactivating cooling system");
+hvacState.coolingActive = false;
+
+// Update action string
+if (actionTaken) action.append(", ");
+action.append("Deactivating cooling system");
+actionTaken = true;
+}
+}
+else if (temperature > tempHigh) {
+if (!hvacState.coolingActive) {
+// Call the activation method but don't let it report independently
+System.out.println("[HVAC-" + zoneDisplay + "] 🧊 Activating cooling system");
+hvacState.coolingActive = true;
+
+// Update action string
+action.append("Activating cooling system");
+actionTaken = true;
+}
+if (hvacState.heatingActive) {
+// Call the activation method but don't let it report independently
+System.out.println("[HVAC-" + zoneDisplay + "] ⏸️ Deactivating heating system");
+hvacState.heatingActive = false;
+
+// Update action string
+if (actionTaken) action.append(", ");
+action.append("Deactivating heating system");
+actionTaken = true;
+}
+}
+else if (temperature < tempMin && !hvacState.heatingActive) {
+// Call the activation method but don't let it report independently
+System.out.println("[HVAC-" + zoneDisplay + "] 🔥 Activating heating system");
+hvacState.heatingActive = true;
+
+// Update action string
+action.append("Activating heating system");
+actionTaken = true;
+}
+else if (temperature > tempMax && !hvacState.coolingActive) {
+// Call the activation method but don't let it report independently
+System.out.println("[HVAC-" + zoneDisplay + "] 🧊 Activating cooling system");
+hvacState.coolingActive = true;
+
+// Update action string
+action.append("Activating cooling system");
+actionTaken = true;
+}
+
+// Handle humidity issues
+if (humidity < humidityLow) {
+if (actionTaken) action.append(", ");
+if (!hvacState.humidifierActive) {
+// Call the activation method but don't let it report independently
+System.out.println("[HVAC-" + zoneDisplay + "] 💦 Activating humidifier");
+hvacState.humidifierActive = true;
+
+// Update action string
+action.append("Activating humidifier");
+actionTaken = true;
+}
+if (hvacState.dehumidifierActive) {
+// Call the activation method but don't let it report independently
+System.out.println("[HVAC-" + zoneDisplay + "] ⏸️ Deactivating dehumidifier");
+hvacState.dehumidifierActive = false;
+
+// Update action string
+if (actionTaken) action.append(", ");
+action.append("Deactivating dehumidifier");
+actionTaken = true;
+}
+}
+else if (humidity > humidityHigh) {
+if (actionTaken) action.append(", ");
+if (!hvacState.dehumidifierActive) {
+// Call the activation method but don't let it report independently
+System.out.println("[HVAC-" + zoneDisplay + "] 🌵 Activating dehumidifier");
+hvacState.dehumidifierActive = true;
+
+// Update action string
+action.append("Activating dehumidifier");
+actionTaken = true;
+}
+if (hvacState.humidifierActive) {
+// Call the activation method but don't let it report independently
+System.out.println("[HVAC-" + zoneDisplay + "] ⏸️ Deactivating humidifier");
+hvacState.humidifierActive = false;
+
+// Update action string
+if (actionTaken) action.append(", ");
+action.append("Deactivating humidifier");
+actionTaken = true;
+}
+}
+else if (humidity < humidityMin && !hvacState.humidifierActive) {
+if (actionTaken) action.append(", ");
+// Call the activation method but don't let it report independently
+System.out.println("[HVAC-" + zoneDisplay + "] 💦 Activating humidifier");
+hvacState.humidifierActive = true;
+
+// Update action string
+action.append("Activating humidifier");
+actionTaken = true;
+}
+else if (humidity > humidityMax && !hvacState.dehumidifierActive) {
+if (actionTaken) action.append(", ");
+// Call the activation method but don't let it report independently
+System.out.println("[HVAC-" + zoneDisplay + "] 🌵 Activating dehumidifier");
+hvacState.dehumidifierActive = true;
+
+// Update action string
+action.append("Activating dehumidifier");
+actionTaken = true;
+}
+
+if (!actionTaken) {
+return null; // No action required
+}
+
+return action.toString();
+}
 
     private void controlZoneClimate(String zoneId, String zoneDisplay, 
                                   double temperature, double humidity,
@@ -559,32 +642,56 @@ public class CoolingHeatingManager {
     private void activateCooling(String zoneId, String zoneDisplay, boolean activate) {
         if (activate) {
             System.out.println("[HVAC-" + zoneDisplay + "] 🧊 Activating cooling system");
+//            if (reporter != null) {
+//                reporter.recordAction("Climate Control", "Activated cooling system in " + zoneDisplay);
+//            }
         } else {
             System.out.println("[HVAC-" + zoneDisplay + "] ⏸️ Deactivating cooling system");
+//            if (reporter != null) {
+//                reporter.recordAction("Climate Control", "Deactivated cooling system in " + zoneDisplay);
+//            }
         }
     }
-    
+
     private void activateHeating(String zoneId, String zoneDisplay, boolean activate) {
         if (activate) {
             System.out.println("[HVAC-" + zoneDisplay + "] 🔥 Activating heating system");
+//            if (reporter != null) {
+//                reporter.recordAction("Climate Control", "Activated heating system in " + zoneDisplay);
+//            }
         } else {
             System.out.println("[HVAC-" + zoneDisplay + "] ⏸️ Deactivating heating system");
+//            if (reporter != null) {
+//                reporter.recordAction("Climate Control", "Deactivated heating system in " + zoneDisplay);
+//            }
         }
     }
-    
+
     private void activateHumidifier(String zoneId, String zoneDisplay, boolean activate) {
         if (activate) {
             System.out.println("[HVAC-" + zoneDisplay + "] 💦 Activating humidifier");
+//            if (reporter != null) {
+//                reporter.recordAction("Climate Control", "Activated humidifier in " + zoneDisplay);
+//            }
         } else {
             System.out.println("[HVAC-" + zoneDisplay + "] ⏸️ Deactivating humidifier");
+//            if (reporter != null) {
+//                reporter.recordAction("Climate Control", "Deactivated humidifier in " + zoneDisplay);
+//            }
         }
     }
-    
+
     private void activateDehumidifier(String zoneId, String zoneDisplay, boolean activate) {
         if (activate) {
             System.out.println("[HVAC-" + zoneDisplay + "] 🌵 Activating dehumidifier");
+//            if (reporter != null) {
+//                reporter.recordAction("Climate Control", "Activated dehumidifier in " + zoneDisplay);
+//            }
         } else {
             System.out.println("[HVAC-" + zoneDisplay + "] ⏸️ Deactivating dehumidifier");
+//            if (reporter != null) {
+//                reporter.recordAction("Climate Control", "Deactivated dehumidifier in " + zoneDisplay);
+//            }
         }
     }
     

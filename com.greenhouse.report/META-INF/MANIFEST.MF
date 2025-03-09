@@ -1,0 +1,12 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Greenhouse Reporting System
+Bundle-SymbolicName: com.greenhouse.report
+Bundle-Version: 1.0.0.qualifier
+Bundle-Activator: com.greenhouse.report.Activator
+Bundle-Vendor: GREENHOUSE
+Bundle-RequiredExecutionEnvironment: JavaSE-17
+Automatic-Module-Name: com.greenhouse.report
+Import-Package: org.osgi.framework;version="1.3.0"
+Bundle-ActivationPolicy: lazy
+Export-Package: com.greenhouse.report

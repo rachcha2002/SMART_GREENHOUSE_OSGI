@@ -18,7 +18,7 @@ public class Activator implements BundleActivator {
 
     @Override
     public void stop(BundleContext context) {
-        registration.unregister();
+//        registration.unregister();
         System.out.println("[SoilMoistureProducer] Service Unregistered.");
     }
 }
