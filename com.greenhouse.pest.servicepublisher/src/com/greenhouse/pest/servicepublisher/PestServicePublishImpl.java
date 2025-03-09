@@ -74,7 +74,7 @@ public class PestServicePublishImpl implements PestServicePublish {
 
     private void notifySubscribers() {
         // Placeholder for notifying subscribers
-        System.out.println(latestPestStatus); // Example of passing the formatted output
+        //System.out.println(latestPestStatus); // Example of passing the formatted output
     }
 
     private String getRandomZone() {

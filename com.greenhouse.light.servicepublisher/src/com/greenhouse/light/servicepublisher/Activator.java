@@ -40,7 +40,7 @@ public class Activator implements BundleActivator, ILightIntensityService {
                 for (String zone : zones) {
                     int newIntensity = random.nextInt(1000); // Generate random intensity for each zone
                     lightIntensityMap.put(zone, newIntensity);
-                    System.out.println("[Producer] " + zone + " Light Intensity: " + newIntensity + " lux");
+                    //System.out.println("[Producer] " + zone + " Light Intensity: " + newIntensity + " lux");
                 }
 
                 Thread.sleep(30000); // Update every 30 seconds
@@ -58,7 +58,7 @@ public class Activator implements BundleActivator, ILightIntensityService {
             executorService.shutdown();
         }
         registration.unregister();
-        System.out.println("[Producer] Light Intensity Service Stopped.");
+        //System.out.println("[Producer] Light Intensity Service Stopped.");
     }
 
     @Override
